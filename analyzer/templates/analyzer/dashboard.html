@@ -1,0 +1,373 @@
+{% extends "analyzer/base.html" %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
+
+    <!-- Hero Section -->
+    <div class="text-center max-w-3xl mx-auto mb-10">
+        <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-50 border border-brand-200/80 text-brand-700 text-xs font-semibold mb-4 shadow-sm">
+            <span class="flex h-2 w-2 rounded-full bg-brand-600 animate-ping"></span>
+            Powered by PyMuPDF & LLM Intelligence
+        </div>
+        <h1 class="text-3xl sm:text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight font-['Plus_Jakarta_Sans'] leading-tight">
+            Match Your Resume to <span class="text-transparent bg-clip-text bg-gradient-to-r from-brand-600 to-indigo-600">Any Target Job</span>
+        </h1>
+        <p class="mt-4 text-base sm:text-lg text-slate-600 leading-relaxed">
+            Upload your PDF resume and target job requirements. Receive an instant match score, skill gap breakdown, and high-impact resume enhancement suggestions.
+        </p>
+    </div>
+
+    <!-- Alert / Notification Banner -->
+    <div id="error-banner" class="hidden max-w-4xl mx-auto mb-8 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 transition-all duration-300">
+        <div class="flex items-start gap-3">
+            <svg class="w-5 h-5 text-rose-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+            </svg>
+            <div class="flex-grow text-sm">
+                <strong class="font-semibold" id="error-title">Analysis Failed:</strong>
+                <span id="error-message" class="ml-1"></span>
+            </div>
+            <button type="button" id="close-error-btn" class="text-rose-600 hover:text-rose-900">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- Form Container -->
+    <form id="resume-analysis-form" method="post" enctype="multipart/form-data" class="space-y-8">
+        {% csrf_token %}
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+            <!-- LEFT COLUMN: PDF Upload Section -->
+            <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 sm:p-7 flex flex-col justify-between hover:shadow-md transition duration-200">
+                <div>
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center space-x-2">
+                            <span class="flex items-center justify-center w-7 h-7 rounded-lg bg-brand-100 text-brand-700 font-bold text-xs">1</span>
+                            <h2 class="text-lg font-bold text-slate-900 font-['Plus_Jakarta_Sans']">Upload Resume</h2>
+                        </div>
+                        <span class="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md">PDF only &bull; Max {{ max_size_mb }}MB</span>
+                    </div>
+
+                    <!-- Drag and Drop Dropzone -->
+                    <div id="dropzone" class="relative group border-2 border-dashed border-slate-300 hover:border-brand-500 rounded-2xl p-6 sm:p-8 text-center cursor-pointer bg-slate-50/50 hover:bg-brand-50/20 transition-all duration-200">
+                        <input type="file" id="resume-file-input" name="resume_file" accept=".pdf,application/pdf" class="sr-only">
+
+                        <!-- Empty State -->
+                        <div id="dropzone-empty" class="space-y-3">
+                            <div class="w-14 h-14 mx-auto rounded-full bg-brand-50 text-brand-600 flex items-center justify-center group-hover:scale-110 transition duration-200">
+                                <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                </svg>
+                            </div>
+                            <div>
+                                <p class="text-sm font-semibold text-slate-800">
+                                    <span class="text-brand-600 hover:underline">Click to browse</span> or drag and drop
+                                </p>
+                                <p class="text-xs text-slate-500 mt-1">Accepts standard PDF documents up to {{ max_size_mb }} MB</p>
+                            </div>
+                        </div>
+
+                        <!-- File Selected Preview State -->
+                        <div id="dropzone-selected" class="hidden flex items-center justify-between p-3.5 bg-white border border-brand-200 rounded-xl shadow-xs">
+                            <div class="flex items-center space-x-3 text-left overflow-hidden">
+                                <div class="w-10 h-10 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center flex-shrink-0">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                                    </svg>
+                                </div>
+                                <div class="overflow-hidden">
+                                    <p id="selected-file-name" class="text-sm font-semibold text-slate-800 truncate">resume.pdf</p>
+                                    <p id="selected-file-size" class="text-xs text-slate-500">0 KB</p>
+                                </div>
+                            </div>
+                            <button type="button" id="remove-file-btn" class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition" title="Remove file">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                    <span class="flex items-center gap-1.5">
+                        <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                        </svg>
+                        In-Memory PyMuPDF Extraction
+                    </span>
+                    <span>No disk storage</span>
+                </div>
+            </div>
+
+            <!-- RIGHT COLUMN: Target Job Description Section -->
+            <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 sm:p-7 flex flex-col justify-between hover:shadow-md transition duration-200">
+                <div>
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex items-center space-x-2">
+                            <span class="flex items-center justify-center w-7 h-7 rounded-lg bg-brand-100 text-brand-700 font-bold text-xs">2</span>
+                            <h2 class="text-lg font-bold text-slate-900 font-['Plus_Jakarta_Sans']">Target Job Description</h2>
+                        </div>
+                        <button type="button" id="clear-jd-btn" class="text-xs text-slate-400 hover:text-slate-600 transition">Clear</button>
+                    </div>
+
+                    <!-- Quick Pre-fill Samples -->
+                    <div class="mb-3">
+                        <p class="text-xs text-slate-500 mb-1.5 font-medium">Quick load sample job requirement:</p>
+                        <div class="flex flex-wrap gap-1.5">
+                            <button type="button" class="sample-job-btn text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-brand-50 text-slate-700 hover:text-brand-700 border border-slate-200 transition font-medium" data-sample="django_developer">
+                                + Django Developer
+                            </button>
+                            <button type="button" class="sample-job-btn text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-brand-50 text-slate-700 hover:text-brand-700 border border-slate-200 transition font-medium" data-sample="frontend_engineer">
+                                + Frontend Engineer
+                            </button>
+                            <button type="button" class="sample-job-btn text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-brand-50 text-slate-700 hover:text-brand-700 border border-slate-200 transition font-medium" data-sample="ai_ml_engineer">
+                                + AI/ML Engineer
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Job Description Textarea -->
+                    <div class="relative">
+                        <textarea id="job-description-input" name="job_description" rows="7"
+                            placeholder="Paste the job requirements, qualifications, and core duties here..."
+                            class="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition resize-y leading-relaxed"
+                            required></textarea>
+                    </div>
+                </div>
+
+                <div class="mt-3 flex items-center justify-between text-xs text-slate-400">
+                    <span id="char-count">0 characters (min 30)</span>
+                    <span>Supports all industries & tech stacks</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ACTION CTA: Run Analysis Button -->
+        <div class="flex flex-col items-center justify-center pt-2">
+            <button type="submit" id="analyze-submit-btn"
+                class="w-full sm:w-auto px-8 py-4 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-700 hover:to-indigo-700 text-white font-bold text-base shadow-lg shadow-brand-500/25 hover:shadow-xl hover:shadow-brand-500/35 transform hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 flex items-center justify-center gap-3 cursor-pointer">
+                <svg class="w-5 h-5 text-indigo-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                </svg>
+                <span>Analyze Resume Match</span>
+            </button>
+            <p class="text-xs text-slate-400 mt-2 text-center">Analysis completes in ~2-4 seconds. Results are generated via AI and returned as structured insights.</p>
+        </div>
+    </form>
+
+    <!-- LOADING STATE SECTION -->
+    <div id="loading-state" class="hidden mt-12 max-w-xl mx-auto bg-white border border-slate-200 rounded-2xl p-8 text-center shadow-lg transition-all duration-300">
+        <div class="relative w-16 h-16 mx-auto mb-5">
+            <div class="absolute inset-0 rounded-full border-4 border-brand-100"></div>
+            <div class="absolute inset-0 rounded-full border-4 border-brand-600 border-t-transparent animate-spin"></div>
+        </div>
+        <h3 class="text-lg font-bold text-slate-900 font-['Plus_Jakarta_Sans']">Analyzing Resume & Job Match</h3>
+        <p id="loading-status-text" class="text-sm text-brand-600 font-medium mt-2 animate-pulse">Extracting text from PDF...</p>
+
+        <!-- Progress Steps -->
+        <div class="mt-6 space-y-2 text-left text-xs text-slate-500 max-w-sm mx-auto">
+            <div class="flex items-center gap-2" id="step-1">
+                <span class="w-4 h-4 rounded-full bg-brand-500 text-white flex items-center justify-center text-[10px]">✓</span>
+                <span>Reading PDF in-memory buffer</span>
+            </div>
+            <div class="flex items-center gap-2" id="step-2">
+                <span class="w-4 h-4 rounded-full bg-brand-500 text-white flex items-center justify-center text-[10px]">✓</span>
+                <span>Extracting page text with PyMuPDF</span>
+            </div>
+            <div class="flex items-center gap-2" id="step-3">
+                <span class="w-4 h-4 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-[10px]">3</span>
+                <span>Calling AI API for qualification alignment</span>
+            </div>
+            <div class="flex items-center gap-2" id="step-4">
+                <span class="w-4 h-4 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-[10px]">4</span>
+                <span>Compiling gap analysis & recommendations</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- RESULTS SECTION -->
+    <div id="results-section" class="hidden mt-12 space-y-8 animate-fadeIn">
+
+        <!-- Mandatory Requirement 8: AI Score Disclaimer Banner -->
+        <div class="p-4 sm:p-5 rounded-2xl bg-amber-50 border border-amber-200/80 text-amber-900 shadow-xs flex items-start sm:items-center justify-between gap-4">
+            <div class="flex items-start sm:items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center flex-shrink-0 mt-0.5 sm:mt-0">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h4 class="text-sm font-bold uppercase tracking-wide text-amber-800">Important Disclaimer</h4>
+                    <p class="text-xs sm:text-sm text-amber-700 mt-0.5">
+                        <strong id="disclaimer-label">AI-Generated Estimate:</strong> This score represents an algorithmic approximation of keyword and qualification alignment. It is <u>not</u> an official Applicant Tracking System (ATS) score or hiring guarantee.
+                    </p>
+                </div>
+            </div>
+            <span class="hidden md:inline-flex text-xs px-2.5 py-1 rounded-full bg-amber-200/60 text-amber-900 font-semibold flex-shrink-0">
+                Non-Official ATS Score
+            </span>
+        </div>
+
+        <!-- TOP SCORE OVERVIEW CARD -->
+        <div class="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden">
+            <div class="p-6 sm:p-8 grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
+
+                <!-- Score Gauge Column -->
+                <div class="md:col-span-5 flex flex-col items-center justify-center text-center p-6 bg-slate-50/70 rounded-2xl border border-slate-100">
+                    <div class="relative w-40 h-40 flex items-center justify-center">
+                        <svg class="w-full h-full -rotate-90" viewBox="0 0 120 120">
+                            <!-- Background Circle -->
+                            <circle cx="60" cy="60" r="50" stroke-width="10" stroke="currentColor" class="text-slate-200" fill="transparent" />
+                            <!-- Progress Circle -->
+                            <circle id="score-circle" cx="60" cy="60" r="50" stroke-width="10" stroke-linecap="round"
+                                stroke="currentColor" class="text-brand-600 transition-all duration-1000 ease-out"
+                                fill="transparent"
+                                stroke-dasharray="314.159"
+                                stroke-dashoffset="314.159" />
+                        </svg>
+                        <div class="absolute flex flex-col items-center justify-center">
+                            <span id="score-value" class="text-4xl font-extrabold text-slate-900 font-['Plus_Jakarta_Sans']">0%</span>
+                            <span class="text-[11px] font-semibold tracking-wider uppercase text-slate-400 mt-0.5">Match Score</span>
+                        </div>
+                    </div>
+
+                    <div class="mt-4">
+                        <span id="score-badge" class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-brand-50 text-brand-700 border border-brand-200">
+                            Calculating...
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Overall Assessment Column -->
+                <div class="md:col-span-7 flex flex-col justify-between h-full space-y-4">
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="text-xs font-bold tracking-wider uppercase text-slate-400">Executive Summary</h3>
+                            <span id="result-provider-badge" class="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md font-mono">LLM API</span>
+                        </div>
+                        <h2 class="text-xl sm:text-2xl font-bold text-slate-900 font-['Plus_Jakarta_Sans']">Overall Assessment</h2>
+                        <div class="mt-3 p-4 rounded-xl bg-slate-50 border-l-4 border-brand-500 text-slate-700 text-sm leading-relaxed" id="overall-assessment-text">
+                            Loading assessment...
+                        </div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="flex flex-wrap items-center gap-3 pt-2">
+                        <button type="button" id="copy-report-btn" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition">
+                            <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
+                            </svg>
+                            <span id="copy-btn-label">Copy Analysis</span>
+                        </button>
+                        <button type="button" onclick="window.print()" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition">
+                            <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+                            </svg>
+                            Print / PDF
+                        </button>
+                        <button type="button" id="reset-analysis-btn" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-xs transition ml-auto">
+                            Analyze Another
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- SKILLS BREAKDOWN: MATCHING VS MISSING -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+
+            <!-- Matching Skills Card -->
+            <div class="bg-white rounded-2xl border border-emerald-100 shadow-sm p-6 sm:p-7">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-base font-bold text-slate-900 font-['Plus_Jakarta_Sans']">Matching Skills</h3>
+                    </div>
+                    <span id="matching-count-badge" class="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">0 Found</span>
+                </div>
+                <p class="text-xs text-slate-500 mb-4">Core competencies and qualifications detected in both your resume and the job listing:</p>
+                <div id="matching-skills-container" class="flex flex-wrap gap-2">
+                    <!-- Populated dynamically via JS -->
+                </div>
+            </div>
+
+            <!-- Missing Skills Card -->
+            <div class="bg-white rounded-2xl border border-rose-100 shadow-sm p-6 sm:p-7">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-8 h-8 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center font-bold">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-base font-bold text-slate-900 font-['Plus_Jakarta_Sans']">Missing Skills & Gaps</h3>
+                    </div>
+                    <span id="missing-count-badge" class="text-xs font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">0 Gaps</span>
+                </div>
+                <p class="text-xs text-slate-500 mb-4">Key prerequisites requested by the employer that were not clearly found on your resume:</p>
+                <div id="missing-skills-container" class="flex flex-wrap gap-2">
+                    <!-- Populated dynamically via JS -->
+                </div>
+            </div>
+
+        </div>
+
+        <!-- IMPROVEMENT SUGGESTIONS CARD -->
+        <div class="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 sm:p-8">
+            <div class="flex items-center space-x-3 mb-6">
+                <div class="w-9 h-9 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-lg font-bold text-slate-900 font-['Plus_Jakarta_Sans']">Actionable Resume Improvement Suggestions</h3>
+                    <p class="text-xs text-slate-500">Apply these targeted changes to increase your interview callback chances:</p>
+                </div>
+            </div>
+
+            <div id="suggestions-list" class="space-y-3.5">
+                <!-- Dynamically populated suggestions -->
+            </div>
+        </div>
+
+    </div>
+
+    <!-- QUICK GUIDE MODAL / SECTION -->
+    <div id="quickstart" class="mt-20 pt-10 border-t border-slate-200">
+        <h3 class="text-lg font-bold text-slate-900 font-['Plus_Jakarta_Sans'] mb-4 text-center">How ResumeIQ Works</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
+            <div class="p-5 rounded-xl bg-white border border-slate-200/80 shadow-xs">
+                <span class="w-6 h-6 rounded-md bg-brand-100 text-brand-700 font-bold text-xs inline-flex items-center justify-center mb-2">1</span>
+                <h4 class="font-bold text-slate-800">In-Memory Extraction</h4>
+                <p class="text-xs text-slate-500 mt-1">PyMuPDF extracts clean text layers from your PDF entirely in RAM. Nothing is written to the file system.</p>
+            </div>
+            <div class="p-5 rounded-xl bg-white border border-slate-200/80 shadow-xs">
+                <span class="w-6 h-6 rounded-md bg-brand-100 text-brand-700 font-bold text-xs inline-flex items-center justify-center mb-2">2</span>
+                <h4 class="font-bold text-slate-800">Semantic AI Evaluation</h4>
+                <p class="text-xs text-slate-500 mt-1">The LLM analyzes keyword relevance, technical depth, and contextual experience match against the job description.</p>
+            </div>
+            <div class="p-5 rounded-xl bg-white border border-slate-200/80 shadow-xs">
+                <span class="w-6 h-6 rounded-md bg-brand-100 text-brand-700 font-bold text-xs inline-flex items-center justify-center mb-2">3</span>
+                <h4 class="font-bold text-slate-800">Actionable Feedback</h4>
+                <p class="text-xs text-slate-500 mt-1">Receive tailored bullet recommendations and identified gaps so you can optimize before submitting applications.</p>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/analyzer/js/dashboard.js"></script>
+{% endblock %}
